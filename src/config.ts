@@ -42,7 +42,7 @@ export function loadConfig(): OpsConfig {
 
     zenBaseUrl: process.env.ZEN_BASE_URL ?? 'https://opencode.ai/zen/v1',
     zenApiKey: process.env.ZEN_API_KEY ?? null,
-    zenModel: process.env.ZEN_MODEL ?? 'deepseek-v4-flash',
+    zenModel: process.env.ZEN_MODEL ?? 'deepseek-v4-flash-free',
 
     githubOwner: process.env.GITHUB_OWNER ?? 'ishameless',
     githubToken: process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN ?? null,

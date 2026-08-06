@@ -105,32 +105,11 @@ export async function classifyAlert(alert: SentryAlert): Promise<Classification>
   });
 
   try {
-    const res = await fetch(`${config.zenBaseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${config.zenApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        temperature: 0.1,
-        messages: [
-          { role: 'system', content: CLASSIFIER_PROMPT },
-          { role: 'user', content: userPayload },
-        ],
-      }),
-    });
-
-    if (!res.ok) {
-      const detail = await res.text();
-      console.error(`[ops] classifier HTTP ${res.status}:`, detail.slice(0, 400));
-      throw new Error(`classifier ${res.status}`);
-    }
-
-    const json = (await res.json()) as {
-      choices?: { message?: { content?: string } }[];
-    };
-    const content = json.choices?.[0]?.message?.content;
+    // The Zen gateway only reliably serves the free model to the opencode
+    // client (raw chat/completions HTTP returns 500), so classify by shelling
+    // out to `opencode run` exactly like the executor does.
+    const prompt = `${CLASSIFIER_PROMPT}\n\nAlert payload:\n${userPayload}`;
+    const content = await runOpencode(prompt, 120_000);
     if (!content) throw new Error('classifier: no content');
     return parseClassification(content);
   } catch (error) {
@@ -145,6 +124,48 @@ export async function classifyAlert(alert: SentryAlert): Promise<Classification>
       confidence: 0.1,
     };
   }
+}
+
+/** Run opencode headless and return the model's raw text output. */
+export async function runOpencode(prompt: string, timeoutMs = 120_000): Promise<string | null> {
+  const { execFile } = await import('node:child_process');
+  const { existsSync } = await import('node:fs');
+  const { resolve } = await import('node:path');
+  const local = resolve(process.cwd(), 'node_modules', '.bin', process.platform === 'win32' ? 'opencode.cmd' : 'opencode');
+  const bin = process.env.OPENCODE_BIN ?? (existsSync(local) ? local : 'opencode');
+  const model = `opencode/${MODEL}`;
+  const args = ['run', '--model', model];
+
+  return new Promise((resolvePromise) => {
+    const child = execFile(bin, args, {
+      timeout: timeoutMs,
+      cwd: process.cwd(),
+      env: {
+        ...process.env,
+        OPENCODE_API_KEY: config.zenApiKey ?? process.env.OPENCODE_API_KEY ?? '',
+        XDG_DATA_HOME: process.env.OPENCODE_XDG_DATA_HOME,
+      },
+      maxBuffer: 1024 * 1024,
+    });
+    let out = '';
+    let err = '';
+    child.stdout?.on('data', (d: Buffer) => (out += d.toString()));
+    child.stderr?.on('data', (d: Buffer) => (err += d.toString()));
+    child.on('error', (e) => {
+      console.error('[ops] opencode spawn failed:', e.message);
+      resolvePromise(null);
+    });
+    child.on('close', (code) => {
+      if (code !== 0) {
+        console.error(`[ops] opencode exited ${code}:`, err.slice(0, 500));
+        resolvePromise(null);
+        return;
+      }
+      resolvePromise(out.trim() || null);
+    });
+    child.stdin?.write(prompt);
+    child.stdin?.end();
+  });
 }
 
 function PROJECT_REPO_HINT(project: string): string | null {
