@@ -38,7 +38,7 @@ export async function runEscalationOnce(): Promise<void> {
       ``,
       `Reply STATUS for details, APPROVE to patch.`,
     ].join('\n');
-    await notifyAdmin(body);
+    await notifyAdmin(body, { title: inc.title, severity: 'escalation', incidentId: inc.id.slice(0, 8) });
   }
 }
 

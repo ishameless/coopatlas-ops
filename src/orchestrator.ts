@@ -163,7 +163,7 @@ async function notifyApprovalRequired(
     `       SKIP to ignore this alert`,
     `       STATUS for all open issues`,
   ].join('\n');
-  await notifyAdmin(body);
+  await notifyAdmin(body, { title: c.summary, severity: c.severity, incidentId: incidentId.slice(0, 8) });
   console.log(`[ops] ${incidentId} awaiting approval (${repoLabel}).`);
 }
 
@@ -227,7 +227,7 @@ export async function handleExecutorCallback(cb: ExecutorCallback): Promise<void
     .filter((l): l is string => l !== null)
     .join('\n');
 
-  await notifyAdmin(body);
+  await notifyAdmin(body, { title: incident.title, severity: 'merge', incidentId: cb.incident_id.slice(0, 8) });
   console.log(`[ops] ${cb.incident_id} awaiting merge approval.`);
 }
 
