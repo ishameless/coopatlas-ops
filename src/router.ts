@@ -22,6 +22,7 @@ import {
   applyCallback,
 } from './state';
 import { runOpencode } from './classifier';
+import { resolveLlmRun } from './llm-runner';
 import { handleVerification, handleInbound } from './whatsapp/webhook';
 import type { ExecutorCallback, Incident, PatchRun } from './types';
 import { startEscalationCron } from './cron';
@@ -117,6 +118,28 @@ export function createOpsRouter(opts?: { startCron?: boolean }): Router {
       console.error('[ops] executor callback failed:', error instanceof Error ? error.message : error);
       res.status(500).json({ error: 'callback failed' });
     }
+  });
+
+  // ── LLM callback (GitHub Actions coopatlas-llm workflow → POST output) ──
+  router.post('/webhooks/llm', async (req, res) => {
+    const token = req.header('x-ops-token');
+    if (token !== config.callbackToken) {
+      res.sendStatus(401);
+      return;
+    }
+
+    const { run_id, output } = req.body as { run_id?: string; output?: string };
+    if (!run_id || typeof output !== 'string') {
+      res.status(422).json({ error: 'missing run_id/output' });
+      return;
+    }
+
+    const resolved = resolveLlmRun(run_id, output);
+    if (!resolved) {
+      // Unknown or already-expired run — nothing to unblock. No-op is fine.
+      console.warn(`[ops] webhooks/llm: no pending job for run ${run_id}`);
+    }
+    res.json({ ok: true });
   });
 
   if (opts?.startCron !== false) {

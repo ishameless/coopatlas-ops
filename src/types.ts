@@ -85,20 +85,10 @@ export interface PatchRun {
   updated_at: string;
 }
 
-/** Payload sent to the executor via repository_dispatch. */
+/** Payload sent via repository_dispatch. */
 export interface DispatchPayload {
-  event_type: 'coopatlas-patch';
-  client_payload: {
-    incident_id: string;
-    run_id: string;
-    repo: string;
-    title: string;
-    severity: string;
-    summary: string;
-    stacktrace: string | null;
-    callback_url: string;
-    callback_token: string;
-  };
+  event_type: string;
+  client_payload: Record<string, unknown>;
 }
 
 /** Callback body the executor POSTs back to /ops/webhooks/executor. */

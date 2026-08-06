@@ -4,9 +4,9 @@
 // can pick auto-patch vs. approval. Free tier, shared with the executor.
 
 import { config } from './config';
+import { runOpencodeRemote } from './llm-runner';
 import type { Classification, SentryAlert, Severity, Risk } from './types';
 
-const MODEL = config.zenModel;
 const CLASSIFIER_PROMPT = `You are CoopAtlasOps, the reliability engineer for the CoopAtlas platform
 (a coffee & milk cooperative operating system). A Sentry alert has fired.
 
@@ -126,46 +126,11 @@ export async function classifyAlert(alert: SentryAlert): Promise<Classification>
   }
 }
 
-/** Run opencode headless and return the model's raw text output. */
+/** Run opencode on a GitHub Actions runner and return the model's raw output. */
 export async function runOpencode(prompt: string, timeoutMs = 120_000): Promise<string | null> {
-  const { execFile } = await import('node:child_process');
-  const { existsSync } = await import('node:fs');
-  const { resolve } = await import('node:path');
-  const local = resolve(process.cwd(), 'node_modules', '.bin', process.platform === 'win32' ? 'opencode.cmd' : 'opencode');
-  const bin = process.env.OPENCODE_BIN ?? (existsSync(local) ? local : 'opencode');
-  const model = `opencode/${MODEL}`;
-  const args = ['run', '--model', model];
-
-  return new Promise((resolvePromise) => {
-    const child = execFile(bin, args, {
-      timeout: timeoutMs,
-      cwd: process.cwd(),
-      env: {
-        ...process.env,
-        OPENCODE_API_KEY: config.zenApiKey ?? process.env.OPENCODE_API_KEY ?? '',
-        XDG_DATA_HOME: process.env.OPENCODE_XDG_DATA_HOME,
-      },
-      maxBuffer: 1024 * 1024,
-    });
-    let out = '';
-    let err = '';
-    child.stdout?.on('data', (d: Buffer) => (out += d.toString()));
-    child.stderr?.on('data', (d: Buffer) => (err += d.toString()));
-    child.on('error', (e) => {
-      console.error('[ops] opencode spawn failed:', e.message);
-      resolvePromise(null);
-    });
-    child.on('close', (code) => {
-      if (code !== 0) {
-        console.error(`[ops] opencode exited ${code}:`, err.slice(0, 500));
-        resolvePromise(null);
-        return;
-      }
-      resolvePromise(out.trim() || null);
-    });
-    child.stdin?.write(prompt);
-    child.stdin?.end();
-  });
+  // opencode runs in CI (coopatlas-llm workflow) so its memory footprint
+  // never lands on the Render free tier, which OOMs above ~512MB.
+  return runOpencodeRemote(prompt, timeoutMs);
 }
 
 function PROJECT_REPO_HINT(project: string): string | null {

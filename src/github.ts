@@ -11,6 +11,60 @@ export function isDispatchArmed(): boolean {
   return Boolean(config.githubToken);
 }
 
+/**
+ * Dispatch an LLM inference job (classifier or chat) to a GitHub Actions
+ * runner instead of running opencode on the host (Render free tier OOMs).
+ * The receiving workflow (coopatlas-llm) runs opencode in CI and POSTs the
+ * output back to the orchestrator's `/ops/webhooks/llm` endpoint.
+ */
+export async function dispatchLlmRun(params: {
+  runId: string;
+  prompt: string;
+  callbackUrl: string;
+  callbackToken: string;
+}): Promise<{ ok: boolean }> {
+  if (!config.githubToken) {
+    console.warn(`[ops] LLM dispatch not armed — would run ${params.runId}.`);
+    return { ok: false };
+  }
+
+  // The LLM runner workflow lives on the backend repo (the host of the
+  // classifier/chat pipeline). Keep prompting bounded to fit repository_dispatch payload limits.
+  const repo = 'coopatlas-backend';
+  const payload: DispatchPayload = {
+    event_type: 'coopatlas-llm',
+    client_payload: {
+      run_id: params.runId,
+      prompt: params.prompt.slice(0, 24000),
+      callback_url: params.callbackUrl,
+      callback_token: params.callbackToken,
+    },
+  };
+
+  const url = `https://api.github.com/repos/${config.githubOwner}/${repo}/dispatches`;
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${config.githubToken}`,
+        'Content-Type': 'application/json',
+        Accept: 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const detail = await res.text();
+      console.error(`[ops] llm dispatch failed (${res.status}):`, detail.slice(0, 400));
+      return { ok: false };
+    }
+    return { ok: true };
+  } catch (error) {
+    console.error('[ops] llm dispatch threw:', error instanceof Error ? error.message : error);
+    return { ok: false };
+  }
+}
+
 export async function dispatchPatch(params: {
   repo: string;
   incidentId: string;
