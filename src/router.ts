@@ -25,7 +25,11 @@ export function createOpsRouter(opts?: { startCron?: boolean }): Router {
   router.post('/webhooks/sentry', async (req, res) => {
     const secret = config.sentryWebhookSecret;
     if (secret) {
-      const headerSecret = req.header('x-sentry-webhook-secret') ?? req.query.secret;
+      const auth = req.header('authorization');
+      const headerSecret =
+        (auth && auth.startsWith('Bearer ') ? auth.slice(7) : null) ??
+        req.header('x-sentry-webhook-secret') ??
+        req.query.secret;
       if (headerSecret !== secret) {
         res.sendStatus(401);
         return;
