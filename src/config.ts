@@ -65,15 +65,31 @@ export function loadConfig(): OpsConfig {
 export const config = loadConfig();
 
 /** Repos excluded from auto-patch (always require human approval). */
-export const APPROVAL_ONLY_REPOS = new Set<string>(['COOPATLAS_COFFEE']);
+export const APPROVAL_ONLY_REPOS = new Set<string>(['CoopAtlas_Coffee']);
 
-/** Project slug → repo mapping, sourced from Sentry project slugs. */
+/** Actual GitHub repo names the executor can dispatch to. */
+export const KNOWN_REPOS = [
+  'COOPATLAS_BACKEND',
+  'coopatlas-mobile',
+  'COOPATLAS_HUB_WEBSITE',
+  'CoopAtlas_Coffee',
+] as const;
+
+/** Project slug → GitHub repo mapping, sourced from Sentry project slugs. */
 export const PROJECT_TO_REPO: Record<string, string> = {
-  'coopatlas-backend': 'coopatlas-backend',
+  'coopatlas-backend': 'COOPATLAS_BACKEND',
   'coopatlas-mobile': 'coopatlas-mobile',
-  'coopatlas-hub-website': 'coopatlas-hub-website',
-  'coopatlas-coffee': 'COOPATLAS_COFFEE',
+  'coopatlas-hub-website': 'COOPATLAS_HUB_WEBSITE',
+  'coopatlas-coffee': 'CoopAtlas_Coffee',
 };
+
+/** Normalize any repo alias/slug to the actual GitHub repo name (or null). */
+export function resolveRepoName(repo: string | null | undefined): string | null {
+  if (!repo) return null;
+  const key = repo.toLowerCase().replace(/[-_\s]/g, '');
+  const found = KNOWN_REPOS.find((r) => r.toLowerCase().replace(/[-_\s]/g, '') === key);
+  return found ?? null;
+}
 
 /** Log which subsystems are armed so startup is greppable. */
 export function logConfigSummary(): void {

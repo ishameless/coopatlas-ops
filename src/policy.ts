@@ -27,9 +27,9 @@ export function decide(classification: Classification, repo: string | null): Dec
 
 export function isKnownRepo(repo: string): boolean {
   return [
-    'coopatlas-backend',
+    'COOPATLAS_BACKEND',
     'coopatlas-mobile',
-    'coopatlas-hub-website',
-    'COOPATLAS_COFFEE',
+    'COOPATLAS_HUB_WEBSITE',
+    'CoopAtlas_Coffee',
   ].includes(repo);
 }

@@ -12,7 +12,7 @@ const CLASSIFIER_PROMPT = `You are CoopAtlasOps, the reliability engineer for th
 
 Classify the issue and reply with a SINGLE JSON object (no markdown, no prose):
 {
-  "repo": "coopatlas-backend" | "coopatlas-mobile" | "coopatlas-hub-website" | "COOPATLAS_COFFEE" | null,
+  "repo": "COOPATLAS_BACKEND" | "coopatlas-mobile" | "COOPATLAS_HUB_WEBSITE" | "CoopAtlas_Coffee" | null,
   "severity": "critical" | "high" | "medium" | "low",
   "risk": "high" | "medium" | "low",
   "summary": "<one-line human summary>",
@@ -149,11 +149,11 @@ export async function classifyAlert(alert: SentryAlert): Promise<Classification>
 
 function PROJECT_REPO_HINT(project: string): string | null {
   return project === 'coopatlas-backend'
-    ? 'coopatlas-backend'
+    ? 'COOPATLAS_BACKEND'
     : project === 'coopatlas-mobile'
       ? 'coopatlas-mobile'
       : project === 'coopatlas-hub-website' || project === 'coopatlas-hub'
-        ? 'coopatlas-hub-website'
+        ? 'COOPATLAS_HUB_WEBSITE'
         : null;
 }
 

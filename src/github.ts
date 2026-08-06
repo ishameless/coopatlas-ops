@@ -4,7 +4,7 @@
 // patch, typecheck, and deploy the repo, then POSTs the executor callback.
 
 import { randomUUID } from 'crypto';
-import { config } from './config';
+import { config, resolveRepoName } from './config';
 import type { DispatchPayload } from './types';
 
 export function isDispatchArmed(): boolean {
@@ -20,9 +20,14 @@ export async function dispatchPatch(params: {
   stacktrace: string | null;
 }): Promise<{ runId: string; ok: boolean }> {
   const runId = randomUUID();
+  const repo = resolveRepoName(params.repo);
+  if (!repo) {
+    console.warn(`[ops] cannot dispatch to unknown repo "${params.repo}" (run ${runId}).`);
+    return { runId, ok: false };
+  }
   if (!isDispatchArmed()) {
     console.warn(
-      `[ops] GitHub dispatch not armed — would dispatch to ${params.repo} (run ${runId}).`,
+      `[ops] GitHub dispatch not armed — would dispatch to ${repo} (run ${runId}).`,
     );
     return { runId, ok: false };
   }
@@ -32,7 +37,7 @@ export async function dispatchPatch(params: {
     client_payload: {
       incident_id: params.incidentId,
       run_id: runId,
-      repo: params.repo,
+      repo,
       title: params.title.slice(0, 200),
       severity: params.severity,
       summary: params.summary.slice(0, 500),
@@ -42,7 +47,7 @@ export async function dispatchPatch(params: {
     },
   };
 
-  const url = `https://api.github.com/repos/${config.githubOwner}/${params.repo}/dispatches`;
+  const url = `https://api.github.com/repos/${config.githubOwner}/${repo}/dispatches`;
   try {
     const res = await fetch(url, {
       method: 'POST',
@@ -77,6 +82,11 @@ export async function mergePullRequest(
   repo: string,
   prUrl: string,
 ): Promise<{ ok: boolean; merged: boolean; error?: string }> {
+  const normalized = resolveRepoName(repo);
+  if (!normalized) {
+    return { ok: false, merged: false, error: `unknown repo ${repo}` };
+  }
+  repo = normalized;
   if (!config.githubToken) {
     return { ok: false, merged: false, error: 'GITHUB_TOKEN not configured' };
   }

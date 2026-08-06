@@ -7,7 +7,7 @@
 //   - ignore            → log + close
 
 import { randomUUID } from 'crypto';
-import { config, PROJECT_TO_REPO } from './config';
+import { config, PROJECT_TO_REPO, resolveRepoName } from './config';
 import { classifyAlert, applyHeuristics } from './classifier';
 import { decide } from './policy';
 import { dispatchPatch, mergePullRequest } from './github';
@@ -70,7 +70,7 @@ export async function handleSentryAlert(alert: SentryAlert): Promise<{ incidentI
   const classification = applyHeuristics(await classifyAlert(alert), alert);
 
   // Prefer the LLM's repo hint when the project slug didn't map.
-  const resolvedRepo = repo ?? classification.repo;
+  const resolvedRepo = resolveRepoName(repo ?? classification.repo);
 
   // ── Decide. ──
   const decision = decide(classification, resolvedRepo);
@@ -194,7 +194,7 @@ export async function handleApproval(
 }
 
 function isKnownRepoForRun(repo: string): boolean {
-  return ['coopatlas-backend', 'coopatlas-mobile', 'coopatlas-hub-website', 'COOPATLAS_COFFEE'].includes(repo);
+  return ['COOPATLAS_BACKEND', 'coopatlas-mobile', 'COOPATLAS_HUB_WEBSITE', 'CoopAtlas_Coffee'].includes(repo);
 }
 
 // ─────────────────────────────
