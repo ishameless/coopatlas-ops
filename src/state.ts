@@ -136,6 +136,37 @@ export async function listOpenIncidents(): Promise<Incident[]> {
   return ((data as Record<string, unknown>[]) ?? []).map(mapIncidentRow);
 }
 
+/** List incidents (any status) newest-first, with optional status filter + pagination. */
+export async function listIncidents(opts: {
+  status?: string[];
+  page?: number;
+  perPage?: number;
+} = {}): Promise<{ data: Incident[]; total: number }> {
+  const page = Math.max(1, opts.page ?? 1);
+  const perPage = Math.min(100, Math.max(1, opts.perPage ?? 50));
+  const statuses = opts.status?.length ? opts.status : null;
+
+  if (!sb) {
+    warnFallback('ops_incidents');
+    let all = [...memoryIncidents.values()].sort((a, b) => (b.updated_at ?? '').localeCompare(a.updated_at ?? ''));
+    if (statuses) all = all.filter((i) => statuses.includes(i.status));
+    const start = (page - 1) * perPage;
+    return { data: all.slice(start, start + perPage), total: all.length };
+  }
+
+  let query = sb.from('ops_incidents').select('*', { count: 'exact' }).order('updated_at', { ascending: false });
+  if (statuses) query = query.in('status', statuses);
+  const start = (page - 1) * perPage;
+  query = query.range(start, start + perPage - 1);
+
+  const { data, count, error } = await query;
+  if (error) {
+    console.error('[ops] listIncidents failed:', error.message);
+    return { data: [], total: 0 };
+  }
+  return { data: ((data as Record<string, unknown>[]) ?? []).map(mapIncidentRow), total: count ?? 0 };
+}
+
 export async function updateIncidentStatus(
   id: string,
   status: Incident['status'],

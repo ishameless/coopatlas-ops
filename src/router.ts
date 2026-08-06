@@ -6,10 +6,47 @@
 import { Router } from 'express';
 import { config, logConfigSummary } from './config';
 import { parseSentryWebhook } from './sentry/parse';
-import { handleSentryAlert, handleExecutorCallback } from './orchestrator';
+import {
+  handleSentryAlert,
+  handleExecutorCallback,
+  handleApproval,
+  handleMergeApproval,
+  statusSummary,
+} from './orchestrator';
+import {
+  listOpenIncidents,
+  listIncidents,
+  getIncidentById,
+  getRunById,
+  getLatestIncidentByIssue,
+  applyCallback,
+} from './state';
+import { runOpencode } from './classifier';
 import { handleVerification, handleInbound } from './whatsapp/webhook';
-import type { ExecutorCallback } from './types';
+import type { ExecutorCallback, Incident, PatchRun } from './types';
 import { startEscalationCron } from './cron';
+
+/**
+ * Programmatic API for the host backend / super-admin dashboard.
+ * The ops package's default export stays `createOpsRouter`; these named exports
+ * let the hosting app list, inspect and approve incidents without going around
+ * the webhooks.
+ */
+export type {
+  Incident,
+  PatchRun,
+  ExecutorCallback,
+  Classification,
+  Severity,
+  Risk,
+  Decision,
+  IncidentStatus,
+  SentryAlert,
+} from './types';
+
+export { runOpencode } from './classifier';
+export { handleApproval, handleMergeApproval, statusSummary } from './orchestrator';
+export { getIncidentById, listOpenIncidents, listIncidents, getRunById } from './state';
 
 export function createOpsRouter(opts?: { startCron?: boolean }): Router {
   const router = Router();
