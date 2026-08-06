@@ -2,8 +2,8 @@
   "name": "coopatlas-ops",
   "version": "0.1.0",
   "description": "CoopAtlas AI Ops orchestrator: Sentry webhooks, WhatsApp control plane, auto-patch policy, GitHub dispatch, escalation cron. Mounts into coopatlas-backend at /ops.",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "dist/router.js",
+  "types": "dist/router.d.ts",
   "files": [
     "dist"
   ],
