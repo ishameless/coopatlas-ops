@@ -45,7 +45,7 @@ export function loadConfig(): OpsConfig {
     zenModel: process.env.ZEN_MODEL ?? 'deepseek-v4-flash',
 
     githubOwner: process.env.GITHUB_OWNER ?? 'ishameless',
-    githubToken: process.env.GITHUB_TOKEN ?? null,
+    githubToken: process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN ?? null,
 
     whatsappPhoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID ?? null,
     whatsappAccessToken: process.env.WHATSAPP_ACCESS_TOKEN ?? null,
@@ -79,7 +79,7 @@ export const PROJECT_TO_REPO: Record<string, string> = {
 export function logConfigSummary(): void {
   console.log('🤖 CoopAtlas Ops ready.');
   console.log(`   classifier      : ${config.zenApiKey ? `zen/${config.zenModel}` : 'DISABLED (ZEN_API_KEY)'}`);
-  console.log(`   github dispatch : ${config.githubToken ? 'armed' : 'DISABLED (GITHUB_TOKEN)'}`);
+  console.log(`   github dispatch : ${config.githubToken ? 'armed' : 'DISABLED (GITHUB_TOKEN/GH_TOKEN)'}`);
   console.log(`   whatsapp        : ${config.whatsappAccessToken ? 'armed' : 'DISABLED (WHATSAPP_ACCESS_TOKEN)'}`);
   console.log(`   state store     : ${config.supabaseUrl ? 'supabase' : 'DISABLED (SUPABASE_URL)'}`);
 }
