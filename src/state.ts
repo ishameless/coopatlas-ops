@@ -23,6 +23,32 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
+/** Map a snake_case DB row → camelCase Incident (as the codebase types it). */
+function mapIncidentRow(row: Record<string, unknown>): Incident {
+  return {
+    id: row.id as string,
+    source: row.source as Incident['source'],
+    projectSlug: (row.project_slug as string | null) ?? null,
+    sentryIssueId: (row.sentry_issue_id as string | null) ?? null,
+    sentryEventId: (row.sentry_event_id as string | null) ?? null,
+    title: (row.title as string) ?? '',
+    level: (row.level as string) ?? 'error',
+    stacktrace: (row.stacktrace as string | null) ?? null,
+    rawPayload: row.raw_payload,
+    severity: (row.severity as Incident['severity']) ?? null,
+    risk: (row.risk as Incident['risk']) ?? null,
+    summary: (row.summary as string | null) ?? null,
+    classificationReason: (row.classification_reason as string | null) ?? null,
+    decision: (row.decision as Incident['decision']) ?? null,
+    status: (row.status as Incident['status']) ?? 'received',
+    repo: (row.repo as string | null) ?? null,
+    runId: (row.run_id as string | null) ?? null,
+    error: (row.error as string | null) ?? null,
+    created_at: row.created_at as string,
+    updated_at: row.updated_at as string,
+  };
+}
+
 export function isStatePersisted(): boolean {
   return sb !== null;
 }
@@ -43,7 +69,13 @@ export async function upsertIncident(incident: Incident): Promise<Incident> {
     created_at: incident.created_at ?? nowIso(),
     updated_at: nowIso(),
   };
+  // PostgREST rejects unknown columns — drop the camelCase aliases before insert.
   delete (row as Partial<Incident> & Record<string, unknown>).rawPayload;
+  delete (row as Partial<Incident> & Record<string, unknown>).sentryIssueId;
+  delete (row as Partial<Incident> & Record<string, unknown>).sentryEventId;
+  delete (row as Partial<Incident> & Record<string, unknown>).projectSlug;
+  delete (row as Partial<Incident> & Record<string, unknown>).classificationReason;
+  delete (row as Partial<Incident> & Record<string, unknown>).runId;
 
   if (!sb) {
     warnFallback('ops_incidents');
@@ -56,7 +88,7 @@ export async function upsertIncident(incident: Incident): Promise<Incident> {
     console.error('[ops] upsertIncident failed:', error.message);
     return incident;
   }
-  return data as Incident;
+  return data ? mapIncidentRow(data as Record<string, unknown>) : incident;
 }
 
 export async function getIncidentById(id: string): Promise<Incident | null> {
@@ -66,7 +98,7 @@ export async function getIncidentById(id: string): Promise<Incident | null> {
     console.error('[ops] getIncidentById failed:', error.message);
     return null;
   }
-  return data as Incident;
+  return data ? mapIncidentRow(data as Record<string, unknown>) : null;
 }
 
 export async function getLatestIncidentByIssue(issueId: string): Promise<Incident | null> {
@@ -87,7 +119,7 @@ export async function getLatestIncidentByIssue(issueId: string): Promise<Inciden
     console.error('[ops] getLatestIncidentByIssue failed:', error.message);
     return null;
   }
-  return (data as Incident) ?? null;
+  return data ? mapIncidentRow(data as Record<string, unknown>) : null;
 }
 
 export async function listOpenIncidents(): Promise<Incident[]> {
@@ -101,7 +133,7 @@ export async function listOpenIncidents(): Promise<Incident[]> {
     console.error('[ops] listOpenIncidents failed:', error.message);
     return [];
   }
-  return (data as Incident[]) ?? [];
+  return ((data as Record<string, unknown>[]) ?? []).map(mapIncidentRow);
 }
 
 export async function updateIncidentStatus(
@@ -141,7 +173,20 @@ export async function createRun(run: PatchRun): Promise<PatchRun> {
     memoryRuns.set(run.id, run);
     return run;
   }
-  const { error } = await sb.from('ops_patch_runs').insert(run);
+  const row = {
+    id: run.id,
+    incident_id: run.incidentId,
+    repo: run.repo,
+    status: run.status,
+    pr_url: run.prUrl ?? null,
+    diff_summary: run.diffSummary ?? null,
+    output: run.output ?? null,
+    deployed: run.deployed ?? false,
+    error: run.error ?? null,
+    created_at: run.created_at ?? nowIso(),
+    updated_at: nowIso(),
+  };
+  const { error } = await sb.from('ops_patch_runs').insert(row);
   if (error) console.error('[ops] createRun failed:', error.message);
   return run;
 }
@@ -156,7 +201,16 @@ export async function updateRun(id: string, patch: Partial<PatchRun>): Promise<P
     return updated;
   }
 
-  const { data, error } = await sb.from('ops_patch_runs').update(updated).eq('id', id).select().single();
+  const row = {
+    status: updated.status,
+    pr_url: updated.prUrl ?? null,
+    diff_summary: updated.diffSummary ?? null,
+    output: updated.output ?? null,
+    deployed: updated.deployed ?? false,
+    error: updated.error ?? null,
+    updated_at: updated.updated_at,
+  };
+  const { data, error } = await sb.from('ops_patch_runs').update(row).eq('id', id).select().single();
   if (error) {
     console.error('[ops] updateRun failed:', error.message);
     return updated;
@@ -171,7 +225,21 @@ export async function getRunById(id: string): Promise<PatchRun | null> {
     console.error('[ops] getRunById failed:', error.message);
     return null;
   }
-  return data as PatchRun;
+  if (!data) return null;
+  const d = data as Record<string, unknown>;
+  return {
+    id: d.id as string,
+    incidentId: d.incident_id as string,
+    repo: d.repo as string,
+    status: d.status as PatchRun['status'],
+    prUrl: (d.pr_url as string | null) ?? undefined,
+    diffSummary: (d.diff_summary as string | null) ?? undefined,
+    output: (d.output as string | null) ?? undefined,
+    deployed: (d.deployed as boolean | null) ?? false,
+    error: (d.error as string | null) ?? undefined,
+    created_at: d.created_at as string,
+    updated_at: d.updated_at as string,
+  } as PatchRun;
 }
 
 /** Apply an executor callback: update the run + the owning incident. */
